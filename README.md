@@ -90,16 +90,67 @@ On a phone:
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    B[Browser: React app] -->|checkout, quiz, forms, chat| E[Supabase Edge Functions on Deno]
+    E --> C[Checkout and payment verification]
+    E --> W[Stripe webhook]
+    E --> I[Inquiries and chat assistant]
+    E --> Q[Email queue]
+    E --> P[Owner and intern portals]
+    C --> S[Stripe]
+    W --> S
+    C --> DB[(PostgreSQL with row level security)]
+    W --> DB
+    I --> DB
+    Q --> M[Email provider]
+    P --> DB
 ```
-Browser (React app)
-   |  checkout, quiz, forms, chat
-   v
-Supabase Edge Functions (Deno)
-   |  checkout, payment verification, Stripe webhook,
-   |  inquiries, chat assistant, email queue,
-   |  owner portal, intern portal
-   v
-PostgreSQL with row level security   Stripe   Email provider
+
+## Order flow
+
+```mermaid
+sequenceDiagram
+    participant Cu as Customer
+    participant Ap as Site
+    participant Ed as Edge function
+    participant St as Stripe
+    participant Ow as Owner
+    Cu->>Ap: Add to cart, choose Apple Pay, Google Pay or card
+    Ap->>Ed: Create checkout session
+    Ed->>St: Session with validated prices
+    St-->>Cu: Payment page
+    St->>Ed: Webhook: payment succeeded
+    Cu->>Ed: Returns, payment verifier runs
+    Ed->>Ed: First to see the paid order records it
+    Ed->>Ow: One order alert, idempotency key blocks duplicates
+    Ed-->>Cu: Confirmation
+```
+
+## Access model
+
+```mermaid
+flowchart LR
+    G[Guest] -->|rate limited forms| F[Inquiries and orders]
+    CU[Customer sign in] --> A1[Own orders]
+    OW[Owner sign in] --> A2[Store management]
+    IN[Intern sign in<br/>server generated, hashed credentials,<br/>expiring opaque sessions] --> A3[Intern studio and uploads]
+    F --> RLS[Row level security<br/>no direct public writes]
+    A1 --> RLS
+    A2 --> RLS
+    A3 --> RLS
+```
+
+## Search pipeline
+
+```mermaid
+flowchart LR
+    R[Route with Seo component] --> BU[Vite build]
+    T[Topic guides data] --> PR[prerender script]
+    PD[Product data] --> PR
+    BU --> PR
+    PR --> H[Static HTML per route<br/>title, description, canonical, social tags]
+    H --> SM[Sitemap with dates and llms.txt]
 ```
 
 The application source is kept private because it includes the live store and its staff tools. This repo is the public write up of the site.
